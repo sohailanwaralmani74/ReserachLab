@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-soft: #EFF6FF;
+
+  --bg: #F6F7F9;
+  --surface: #FFFFFF;
+  --surface-2: #F9FAFB;
+  --surface-3: #F1F3F5;
+  --border: #E2E5E9;
+  --border-strong: #D1D5DB;
+
+  --text: #111827;
+  --text-2: #374151;
+  --text-3: #6B7280;
+  --text-4: #9CA3AF;
+
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+  --info: #0284C7;
+
+  --supporting: #16A34A;
+  --contradicting: #DC2626;
+  --uncertain: #D97706;
+  --reference: #6B7280;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-card: 8px;
+  --radius-lg: 10px;
+}
+
+.dark {
+  --bg: #0B0F14;
+  --surface: #11161D;
+  --surface-2: #161C24;
+  --surface-3: #1C232D;
+  --border: #252D38;
+  --border-strong: #343E4B;
+
+  --text: #F3F4F6;
+  --text-2: #D1D5DB;
+  --text-3: #9CA3AF;
+  --text-4: #6B7280;
+
+  --primary: #60A5FA;
+  --primary-hover: #93C5FD;
+  --primary-soft: #172554;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-mono, code, pre, kbd {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Accessible focus styling */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-4);
+}
+
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
