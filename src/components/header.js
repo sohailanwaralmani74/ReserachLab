@@ -7,13 +7,13 @@ export function renderHeader({ investigationName = 'Untitled Investigation', per
     <header id="top-header" class="h-14 flex-none border-b border-[var(--border)] bg-[var(--surface)] px-4 flex items-center justify-between sticky top-0 z-30 select-none shadow-xs">
       <!-- Left: Logo & Editable Investigation Name -->
       <div class="flex items-center gap-3 min-w-0 flex-1">
-        <div class="flex items-center gap-2 cursor-pointer" id="header-logo-btn" title="Investigation OS">
+        <div class="flex items-center gap-2 cursor-pointer" id="header-logo-btn" title="Reptile Birds | Home & Guides">
           <div class="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--primary-soft)] text-[var(--primary)] flex items-center justify-center font-bold text-sm border border-[var(--border)]">
             ${icon('shield', 18)}
           </div>
           <div class="hidden sm:block">
-            <span class="font-bold tracking-tight text-xs uppercase text-[var(--text-3)] font-mono block leading-none">OSINT / FORENSIC</span>
-            <span class="font-semibold text-sm text-[var(--text)] leading-none">Investigation OS</span>
+            <span class="font-bold tracking-tight text-xs uppercase text-[var(--text-3)] font-mono block leading-none">RESEARCH WORKSPACE</span>
+            <span class="font-semibold text-sm text-[var(--text)] leading-none">Reptile Birds</span>
           </div>
         </div>
 
@@ -76,6 +76,16 @@ export function renderHeader({ investigationName = 'Untitled Investigation', per
           ${icon('help', 16)}
         </button>
 
+        <!-- Public Site & Documentation Link -->
+        <button
+          id="header-public-site-btn"
+          class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] rounded-[var(--radius-sm)] border border-[var(--border)] transition-colors cursor-pointer"
+          title="Return to Public Site & Research Guides"
+        >
+          ${icon('globe', 13, 'text-[var(--primary)]')}
+          <span>Guides & Site</span>
+        </button>
+
         <!-- Context Actions Menu Button (⋮) -->
         <div class="relative">
           <button
@@ -94,7 +104,15 @@ export function renderHeader({ investigationName = 'Untitled Investigation', per
           >
             <button id="menu-export-archive" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
               ${icon('download', 14, 'text-[var(--primary)]')}
-              <span>Export Investigation Archive</span>
+              <span>Export Investigation Archive (JSON)</span>
+            </button>
+            <button id="menu-export-standalone-dossier" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
+              ${icon('fileCheck', 14, 'text-amber-500')}
+              <span>Export Standalone Dossier (HTML)</span>
+            </button>
+            <button id="menu-forensic-lab" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
+              ${icon('cpu', 14, 'text-[var(--primary)]')}
+              <span>Forensic Analysis Lab</span>
             </button>
             <button id="menu-restore-archive" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
               ${icon('upload', 14, 'text-[var(--text-3)]')}
@@ -109,6 +127,10 @@ export function renderHeader({ investigationName = 'Untitled Investigation', per
             <button id="menu-storage-info" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
               ${icon('info', 14, 'text-[var(--text-3)]')}
               <span>Storage & Hash Integrity</span>
+            </button>
+            <button id="menu-public-site" class="w-full text-left px-3 py-2 hover:bg-[var(--surface-3)] flex items-center gap-2">
+              ${icon('globe', 14, 'text-[var(--primary)]')}
+              <span>Public Site & Guides</span>
             </button>
             <div class="my-1 border-t border-[var(--border)]"></div>
             <button id="menu-clear-all" class="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 flex items-center gap-2 cursor-pointer">

@@ -1,6 +1,6 @@
 {
-  "name": "Investigation OS",
-  "description": "A private, local-first research and evidence management workspace for evidence-based investigators.",
+  "name": "Reptile Birds",
+  "description": "A browser-based private research and evidence-management workspace. Never lose the thread of your research.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

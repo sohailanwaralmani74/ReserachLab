@@ -547,7 +547,7 @@ export function renderHelpModal() {
         <div class="p-4 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="text-[var(--primary)]">${icon('help', 16)}</span>
-            <h3 class="font-bold text-sm text-[var(--text)]">Investigation OS Methodology & Shortcuts</h3>
+            <h3 class="font-bold text-sm text-[var(--text)]">Reptile Birds Methodology & Shortcuts</h3>
           </div>
           <button id="modal-close-btn" class="p-1 text-[var(--text-4)] hover:text-[var(--text)] rounded">
             ${icon('x', 14)}

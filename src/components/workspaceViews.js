@@ -10,6 +10,7 @@ export function renderWorkspaceModeBar(activeMode = 'document', counts = {}, isE
     { id: 'verification', label: 'Verification', icon: 'checkCircle', alert: counts.conflicts > 0 },
     { id: 'notes', label: 'Notes', icon: 'bookOpen', count: counts.notes || 0 },
     { id: 'compare', label: 'Compare', icon: 'compare' },
+    { id: 'tools', label: 'Forensic Lab', icon: 'cpu' },
     { id: 'report', label: 'Report', icon: 'printer' },
   ];
 
@@ -125,13 +126,31 @@ export function renderEvidenceView({ evidence = [], sources = [], claims = [], f
           </div>
         </div>
 
-        <button
-          id="btn-add-evidence-manual"
-          class="flex items-center gap-1 px-2.5 py-1 bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] rounded-[var(--radius-sm)] font-medium text-xs shadow-xs transition-colors cursor-pointer"
-        >
-          ${icon('plus', 13)}
-          <span>Add Evidence</span>
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button
+            id="btn-evidence-to-citations"
+            class="flex items-center gap-1 px-2.5 py-1 bg-[var(--surface-3)] hover:bg-[var(--border-strong)] rounded-[var(--radius-sm)] font-medium text-xs transition-colors cursor-pointer text-[var(--text)]"
+            title="Generate academic & legal citations"
+          >
+            ${icon('bookOpen', 12)}
+            <span>Citations</span>
+          </button>
+          <button
+            id="btn-evidence-to-redact"
+            class="flex items-center gap-1 px-2.5 py-1 bg-[var(--surface-3)] hover:bg-[var(--border-strong)] rounded-[var(--radius-sm)] font-medium text-xs transition-colors cursor-pointer text-[var(--text)]"
+            title="Whistleblower PII Redaction"
+          >
+            ${icon('scissors', 12)}
+            <span>Redact PII</span>
+          </button>
+          <button
+            id="btn-add-evidence-manual"
+            class="flex items-center gap-1 px-2.5 py-1 bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] rounded-[var(--radius-sm)] font-medium text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            ${icon('plus', 13)}
+            <span>Add Evidence</span>
+          </button>
+        </div>
       </div>
 
       <!-- Evidence Table -->
@@ -375,6 +394,14 @@ export function renderConnectionsView({ entities = [], relationships = [], claim
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            id="btn-auto-extract-entities"
+            class="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--primary-soft)] hover:bg-[var(--surface-3)] text-[var(--primary)] border border-[var(--border)] rounded-[var(--radius-sm)] font-semibold text-xs transition-colors cursor-pointer"
+            title="Auto-extract entities & corporate structures from documents"
+          >
+            ${icon('sparkles', 12)}
+            <span>Auto-Extract Entities</span>
+          </button>
           <button
             id="btn-add-entity"
             class="flex items-center gap-1 px-2.5 py-1 bg-[var(--surface-3)] hover:bg-[var(--border-strong)] rounded-[var(--radius-sm)] font-medium text-xs transition-colors cursor-pointer text-[var(--text)]"
@@ -776,6 +803,14 @@ export function renderReportView({ investigation, sources = [], evidence = [], c
         </span>
 
         <div class="flex items-center gap-2">
+          <button
+            id="btn-export-standalone-html"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-3)] text-[var(--text)] hover:bg-[var(--border-strong)] rounded-[var(--radius-sm)] font-medium text-xs border border-[var(--border)] transition-colors cursor-pointer"
+            title="Download portable offline .html evidence vault"
+          >
+            ${icon('download', 13)}
+            <span>Export Offline HTML Dossier</span>
+          </button>
           <button
             id="btn-print-dossier"
             class="flex items-center gap-1 px-3 py-1.5 bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] rounded-[var(--radius-sm)] font-semibold text-xs shadow-xs transition-colors cursor-pointer"

@@ -20,6 +20,15 @@ import {
   renderCompareView,
   renderReportView,
 } from './components/workspaceViews.js';
+import { renderForensicLabView } from './components/forensicLabView.js';
+import {
+  extractEntitiesAndPatterns,
+  generateStandaloneDossierHtml,
+  verifyFileHash,
+  redactText,
+  generateCitation,
+  detectTextOverlap,
+} from './services/forensicTools.js';
 import {
   renderEvidenceModal,
   renderClaimModal,
@@ -35,8 +44,85 @@ import {
 import { renderGlobalSearchModal } from './components/globalSearch.js';
 import { NetworkGraph } from './components/networkGraph.js';
 
+import { applyPageSeo, renderPublicPageWrapper } from './publicSite/publicLayout.js';
+import {
+  renderHomePage,
+  renderAboutPage,
+  renderHowItWorksPage,
+  renderFeaturesPage,
+  renderUseCasesPage,
+  renderPrivacyPage,
+  renderTermsPage,
+  renderCookiesPage,
+  renderContactPage,
+  renderFaqPage,
+  renderSecurityPage,
+  renderDataStoragePage,
+  renderEvidenceProvenancePage,
+  renderResearchGuidePage,
+} from './publicSite/publicPages.js';
+
+function getInitialRoute() {
+  const hash = window.location.hash.replace(/^#/, '');
+  if (hash) {
+    return hash.startsWith('/') ? hash : '/' + hash;
+  }
+  return '/';
+}
+
+function navigateRoute(route) {
+  state.currentRoute = route;
+  window.location.hash = '#' + route;
+  renderApp();
+  window.scrollTo(0, 0);
+}
+
+function renderPublicRouteContent(route) {
+  const clean = (route || '/').toLowerCase().replace(/\/$/, '');
+  switch (clean) {
+    case '/about':
+      return renderAboutPage();
+    case '/how-it-works':
+      return renderHowItWorksPage();
+    case '/features':
+      return renderFeaturesPage();
+    case '/use-cases':
+    case '/use-cases/investigative-journalism':
+    case '/use-cases/osint':
+    case '/use-cases/academic-research':
+    case '/use-cases/due-diligence':
+    case '/use-cases/fact-checking':
+    case '/use-cases/documentary-research':
+    case '/use-cases/legal-research':
+      return renderUseCasesPage();
+    case '/privacy':
+      return renderPrivacyPage();
+    case '/terms':
+      return renderTermsPage();
+    case '/cookies':
+      return renderCookiesPage();
+    case '/contact':
+      return renderContactPage();
+    case '/faq':
+      return renderFaqPage();
+    case '/security':
+      return renderSecurityPage();
+    case '/data-storage':
+      return renderDataStoragePage();
+    case '/evidence-provenance':
+      return renderEvidenceProvenancePage();
+    case '/research-guide':
+      return renderResearchGuidePage();
+    case '':
+    case '/':
+    default:
+      return renderHomePage();
+  }
+}
+
 // Global App State
 const state = {
+  currentRoute: getInitialRoute(),
   investigation: null,
   sources: [],
   folders: [],
@@ -79,6 +165,22 @@ const state = {
   // Verification
   verificationReport: null,
   networkGraph: null,
+
+  // Pure JS Forensic Analysis Lab State
+  activeLabTab: 'extractor',
+  labState: {
+    extractedData: null,
+    extractorText: '',
+    hasherResult: null,
+    redactorOriginalText: '',
+    redactorMode: 'solid',
+    redactEmails: true,
+    redactPhones: true,
+    redactAmounts: false,
+    citationEvidenceIdx: 0,
+    citationFormat: 'bluebook',
+    overlapResult: null,
+  },
 };
 
 // Initialize Application
@@ -89,13 +191,24 @@ async function initApp() {
     document.documentElement.classList.add('dark');
   }
 
-  // 2. Load data from IndexedDB
+  // 2. Hashchange listener for browser history & navigation
+  window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace(/^#/, '');
+    const route = hash ? (hash.startsWith('/') ? hash : '/' + hash) : '/';
+    if (route !== state.currentRoute) {
+      state.currentRoute = route;
+      renderApp();
+      window.scrollTo(0, 0);
+    }
+  });
+
+  // 3. Load data from IndexedDB
   await loadData();
 
-  // 3. Render shell
+  // 4. Render shell
   renderApp();
 
-  // 4. Global keyboard listeners (Ctrl+K, Esc)
+  // 5. Global keyboard listeners (Ctrl+K, Esc)
   initGlobalKeyboard();
 }
 
@@ -142,77 +255,94 @@ function renderApp() {
   const appEl = document.getElementById('app');
   if (!appEl) return;
 
-  const currentSource = state.sources.find((s) => s.id === state.selectedSourceId) || state.sources[0];
-  const hasFiles = state.sources.length > 0;
+  const isWorkspace = state.currentRoute === '/workspace';
 
-  appEl.innerHTML = `
-    <div class="min-h-screen w-full flex flex-col bg-[var(--bg)] text-[var(--text)]">
-      <!-- TOP HEADER (Section 3) -->
-      ${renderHeader({
-        investigationName: state.investigation ? state.investigation.name : 'Untitled Investigation',
-        persistenceStatus: state.persistenceStatus,
-      })}
+  if (isWorkspace) {
+    const currentSource = state.sources.find((s) => s.id === state.selectedSourceId) || state.sources[0];
+    const hasFiles = state.sources.length > 0;
 
-      <!-- MAIN PAGE SHELL (Section 2) -->
-      <!-- Desktop: 75% Application, 25% Ads. Mobile: 100% Application, Ads below. Entire screen scrollable -->
-      <div class="flex-1 flex flex-col lg:flex-row w-full">
-        
-        <!-- 75% APPLICATION CONTAINER -->
-        <main class="w-full lg:w-[75%] flex flex-col md:flex-row min-w-0 bg-[var(--surface)] border-b lg:border-b-0 lg:border-r border-[var(--border)]">
+    appEl.innerHTML = `
+      <div class="min-h-screen w-full flex flex-col bg-[var(--bg)] text-[var(--text)]">
+        <!-- TOP HEADER (Section 3) -->
+        ${renderHeader({
+          investigationName: state.investigation ? state.investigation.name : 'Untitled Investigation',
+          persistenceStatus: state.persistenceStatus,
+        })}
+
+        <!-- MAIN PAGE SHELL (Section 2) -->
+        <!-- Desktop: 75% Application, 25% Ads. Mobile: 100% Application, Ads below. Entire screen scrollable -->
+        <div class="flex-1 flex flex-col lg:flex-row w-full">
           
-          <!-- FILES EXPLORER -->
-          ${!state.isExplorerCollapsed ? renderFilesExplorer({
-            sources: state.sources,
-            folders: state.folders,
-            selectedSourceId: state.selectedSourceId,
-            searchQuery: state.explorerSearchQuery,
-            selectedFolderId: state.selectedFolderId,
-          }) : ''}
+          <!-- 75% APPLICATION CONTAINER -->
+          <main class="w-full lg:w-[75%] flex flex-col md:flex-row min-w-0 bg-[var(--surface)] border-b lg:border-b-0 lg:border-r border-[var(--border)]">
+            
+            <!-- FILES EXPLORER -->
+            ${!state.isExplorerCollapsed ? renderFilesExplorer({
+              sources: state.sources,
+              folders: state.folders,
+              selectedSourceId: state.selectedSourceId,
+              searchQuery: state.explorerSearchQuery,
+              selectedFolderId: state.selectedFolderId,
+            }) : ''}
 
-          <!-- MAIN WORKSPACE -->
-          <div id="main-workspace-area" class="flex-1 flex flex-col min-w-0 bg-[var(--surface)]">
-            ${hasFiles ? `
-              <!-- Mode Switcher Bar -->
-              ${renderWorkspaceModeBar(state.activeMode, {
-                sources: state.sources.length,
-                evidence: state.evidence.length,
-                claims: state.claims.length,
-                entities: state.entities.length,
-                timeline: state.timeline.length,
-                notes: state.notes.length,
-                conflicts: state.verificationReport ? state.verificationReport.conflictsDetected : 0,
-              }, state.isExplorerCollapsed)}
+            <!-- MAIN WORKSPACE -->
+            <div id="main-workspace-area" class="flex-1 flex flex-col min-w-0 bg-[var(--surface)]">
+              ${hasFiles ? `
+                <!-- Mode Switcher Bar -->
+                ${renderWorkspaceModeBar(state.activeMode, {
+                  sources: state.sources.length,
+                  evidence: state.evidence.length,
+                  claims: state.claims.length,
+                  entities: state.entities.length,
+                  timeline: state.timeline.length,
+                  notes: state.notes.length,
+                  conflicts: state.verificationReport ? state.verificationReport.conflictsDetected : 0,
+                }, state.isExplorerCollapsed)}
 
-              <!-- Mode Active Views -->
-              <div id="workspace-content" class="flex-1 min-w-0">
-                ${renderActiveWorkspaceView(currentSource)}
-              </div>
-            ` : `
-              <!-- Starting Empty State (Section 6) -->
-              ${renderEmptyState()}
-            `}
+                <!-- Mode Active Views -->
+                <div id="workspace-content" class="flex-1 min-w-0">
+                  ${renderActiveWorkspaceView(currentSource)}
+                </div>
+              ` : `
+                <!-- Starting Empty State (Section 6) -->
+                ${renderEmptyState()}
+              `}
+            </div>
+          </main>
+
+          <!-- 25% ADVERTISEMENT AREA (Section 2: Decoupled page shell) -->
+          <div class="w-full lg:w-[25%] flex-none bg-[var(--surface-2)] lg:bg-[var(--surface)]">
+            ${renderAdsColumn()}
           </div>
-        </main>
+        </div>
 
-        <!-- 25% ADVERTISEMENT AREA (Section 2: Decoupled page shell) -->
-        <div class="w-full lg:w-[25%] flex-none bg-[var(--surface-2)] lg:bg-[var(--surface)]">
-          ${renderAdsColumn()}
+        <!-- MODALS CONTAINER -->
+        <div id="modals-container">
+          ${renderActiveModal()}
         </div>
       </div>
+    `;
 
+    // Bind DOM events
+    attachEventListeners();
+
+    // If in connections mode, mount SVG graph
+    if (state.activeMode === 'connections' && hasFiles) {
+      mountNetworkGraph();
+    }
+  } else {
+    // Render Public Marketing & SEO Page
+    const pageHtml = renderPublicRouteContent(state.currentRoute);
+    appEl.innerHTML = `
+      ${renderPublicPageWrapper(state.currentRoute, pageHtml)}
       <!-- MODALS CONTAINER -->
       <div id="modals-container">
         ${renderActiveModal()}
       </div>
-    </div>
-  `;
+    `;
 
-  // Bind DOM events
-  attachEventListeners();
-
-  // If in connections mode, mount SVG graph
-  if (state.activeMode === 'connections' && hasFiles) {
-    mountNetworkGraph();
+    applyPageSeo(state.currentRoute);
+    attachPublicEventListeners();
   }
 }
 
@@ -287,6 +417,9 @@ function renderActiveWorkspaceView(currentSource) {
         relationships: state.relationships,
       });
 
+    case 'tools':
+      return renderForensicLabView(state, state.activeLabTab, state.labState);
+
     default:
       return renderDocumentViewer({
         source: currentSource,
@@ -334,7 +467,77 @@ function renderActiveModal() {
   }
 }
 
+function attachPublicEventListeners() {
+  // 1. Navigation links
+  document.querySelectorAll('.nav-link, [data-route]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      const route = el.getAttribute('data-route') || el.getAttribute('href');
+      if (route) {
+        navigateRoute(route);
+      }
+    });
+  });
+
+  // 2. Launch workspace triggers
+  document.querySelectorAll('.start-investigation-trigger, #launch-workspace-btn, #mobile-launch-workspace-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigateRoute('/workspace');
+    });
+  });
+
+  // 3. Public header theme toggle
+  const publicThemeBtn = document.getElementById('public-theme-toggle');
+  if (publicThemeBtn) {
+    publicThemeBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('inv_theme', isDark ? 'dark' : 'light');
+      renderApp();
+    });
+  }
+
+  // 4. Mobile navigation toggle
+  const mobileNavBtn = document.getElementById('mobile-nav-toggle');
+  const mobileNavMenu = document.getElementById('mobile-nav-menu');
+  if (mobileNavBtn && mobileNavMenu) {
+    mobileNavBtn.addEventListener('click', () => {
+      mobileNavMenu.classList.toggle('hidden');
+    });
+  }
+
+  // 5. Footer clear storage shortcut
+  const footerClearBtn = document.getElementById('footer-clear-storage-shortcut');
+  if (footerClearBtn) {
+    footerClearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.activeModal = 'clearResearch';
+      state.modalProps = {
+        investigationName: state.investigation ? state.investigation.name : 'Untitled Investigation',
+      };
+      renderApp();
+    });
+  }
+
+  // 6. Active modal handlers if opened from public pages
+  attachModalEvents();
+}
+
 function attachEventListeners() {
+  // Workspace to Public Site Navigation
+  const headerLogoBtn = document.getElementById('header-logo-btn');
+  if (headerLogoBtn) {
+    headerLogoBtn.addEventListener('click', () => {
+      navigateRoute('/');
+    });
+  }
+
+  const headerPublicSiteBtn = document.getElementById('header-public-site-btn');
+  if (headerPublicSiteBtn) {
+    headerPublicSiteBtn.addEventListener('click', () => {
+      navigateRoute('/');
+    });
+  }
+
   // 1. Investigation Name Inline Editing (Section 3)
   const nameDisplayBtn = document.getElementById('investigation-name-display');
   const nameInput = document.getElementById('investigation-name-input');
@@ -467,6 +670,15 @@ function attachEventListeners() {
       state.activeModal = 'storage';
       state.modalProps = { storageInfo: info };
       renderApp();
+    });
+  }
+
+  const menuPublicSiteBtn = document.getElementById('menu-public-site');
+  if (menuPublicSiteBtn) {
+    menuPublicSiteBtn.addEventListener('click', () => {
+      const menu = document.getElementById('header-dropdown-menu');
+      if (menu) menu.classList.add('hidden');
+      navigateRoute('/');
     });
   }
 
@@ -957,6 +1169,423 @@ function attachEventListeners() {
   if (btnPrintDossier) {
     btnPrintDossier.addEventListener('click', () => {
       window.print();
+    });
+  }
+
+  // 14. Forensic Lab & Pure JS Investigation Utilities
+  const triggerDossierDownload = () => {
+    const caseData = {
+      caseName: state.investigation?.name || 'Evidence Dossier',
+      caseDescription: state.investigation?.description || '',
+      sources: state.sources,
+      evidence: state.evidence,
+      claims: state.claims,
+      entities: state.entities,
+      timeline: state.timeline,
+    };
+    const htmlContent = generateStandaloneDossierHtml(caseData);
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = (state.investigation?.name || 'evidence-dossier').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    a.download = `${safeName}-standalone-dossier.html`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    triggerPersistenceStatus('Exported offline HTML dossier');
+  };
+
+  const menuForensicLab = document.getElementById('menu-forensic-lab');
+  if (menuForensicLab) {
+    menuForensicLab.addEventListener('click', () => {
+      const menu = document.getElementById('header-dropdown-menu');
+      if (menu) menu.classList.add('hidden');
+      state.currentRoute = '/workspace';
+      state.activeMode = 'tools';
+      renderApp();
+    });
+  }
+
+  const menuExportDossier = document.getElementById('menu-export-standalone-dossier');
+  if (menuExportDossier) {
+    menuExportDossier.addEventListener('click', () => {
+      const menu = document.getElementById('header-dropdown-menu');
+      if (menu) menu.classList.add('hidden');
+      triggerDossierDownload();
+    });
+  }
+
+  // Sub-tab navigation
+  document.querySelectorAll('.lab-subtab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.activeLabTab = btn.dataset.subtab;
+      renderApp();
+    });
+  });
+
+  // Cross-view shortcuts
+  const btnAutoExtract = document.getElementById('btn-auto-extract-entities');
+  if (btnAutoExtract) {
+    btnAutoExtract.addEventListener('click', () => {
+      state.activeMode = 'tools';
+      state.activeLabTab = 'extractor';
+      renderApp();
+    });
+  }
+
+  const btnEvToCitations = document.getElementById('btn-evidence-to-citations');
+  if (btnEvToCitations) {
+    btnEvToCitations.addEventListener('click', () => {
+      state.activeMode = 'tools';
+      state.activeLabTab = 'citations';
+      renderApp();
+    });
+  }
+
+  const btnEvToRedact = document.getElementById('btn-evidence-to-redact');
+  if (btnEvToRedact) {
+    btnEvToRedact.addEventListener('click', () => {
+      state.activeMode = 'tools';
+      state.activeLabTab = 'redactor';
+      renderApp();
+    });
+  }
+
+  // Tool 1: Extractor
+  const extSourceSelect = document.getElementById('extractor-source-select');
+  const extTextInput = document.getElementById('extractor-text-input');
+  const extRunBtn = document.getElementById('extractor-run-btn');
+  const extImportBtn = document.getElementById('extractor-import-entities-btn');
+
+  if (extSourceSelect) {
+    extSourceSelect.addEventListener('change', (e) => {
+      const srcId = e.target.value;
+      const src = state.sources.find((s) => s.id === srcId);
+      if (src && extTextInput) {
+        let text = src.rawText || '';
+        if (!text && src.content?.pages) {
+          text = src.content.pages.map((p) => p.text).join('\n\n');
+        }
+        extTextInput.value = text;
+        state.labState.extractorText = text;
+      }
+    });
+  }
+
+  if (extTextInput) {
+    extTextInput.addEventListener('input', (e) => {
+      state.labState.extractorText = e.target.value;
+    });
+  }
+
+  if (extRunBtn) {
+    extRunBtn.addEventListener('click', () => {
+      const text = extTextInput ? extTextInput.value : state.labState.extractorText;
+      state.labState.extractorText = text;
+      state.labState.extractedData = extractEntitiesAndPatterns(text);
+      renderApp();
+    });
+  }
+
+  if (extImportBtn && state.labState.extractedData) {
+    extImportBtn.addEventListener('click', async () => {
+      const data = state.labState.extractedData;
+      let addedCount = 0;
+      const existingNames = new Set(state.entities.map((e) => e.name.toLowerCase()));
+
+      for (const corp of data.corporateEntities || []) {
+        if (!existingNames.has(corp.value.toLowerCase())) {
+          existingNames.add(corp.value.toLowerCase());
+          const newEntity = {
+            id: 'ent-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            name: corp.value,
+            type: 'Company',
+            role: 'Identified via Pattern Extractor',
+            notes: 'Auto-extracted from document text.',
+            tags: ['extracted', 'corporate'],
+          };
+          state.entities.push(newEntity);
+          await Storage.saveEntity(newEntity);
+          addedCount++;
+        }
+      }
+
+      for (const jur of data.offshoreJurisdictions || []) {
+        if (!existingNames.has(jur.value.toLowerCase())) {
+          existingNames.add(jur.value.toLowerCase());
+          const newEntity = {
+            id: 'ent-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            name: jur.value,
+            type: 'Organization',
+            role: 'Secrecy Jurisdiction / Tax Haven',
+            notes: 'Jurisdiction extracted from case documents.',
+            tags: ['extracted', 'offshore'],
+          };
+          state.entities.push(newEntity);
+          await Storage.saveEntity(newEntity);
+          addedCount++;
+        }
+      }
+
+      for (const bank of data.bankingIdentifiers || []) {
+        if (!existingNames.has(bank.value.toLowerCase())) {
+          existingNames.add(bank.value.toLowerCase());
+          const newEntity = {
+            id: 'ent-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            name: bank.value,
+            type: 'Organization',
+            role: bank.type || 'Bank Coordinate',
+            notes: 'Banking identifier extracted from case documents.',
+            tags: ['extracted', 'banking'],
+          };
+          state.entities.push(newEntity);
+          await Storage.saveEntity(newEntity);
+          addedCount++;
+        }
+      }
+
+      triggerPersistenceStatus(`Imported ${addedCount} entities`);
+      renderApp();
+    });
+  }
+
+  // Tool 2: Standalone Dossier Export & Preview
+  const dossierDownloadBtn = document.getElementById('dossier-download-btn');
+  if (dossierDownloadBtn) {
+    dossierDownloadBtn.addEventListener('click', triggerDossierDownload);
+  }
+  const btnExportStandaloneHtml = document.getElementById('btn-export-standalone-html');
+  if (btnExportStandaloneHtml) {
+    btnExportStandaloneHtml.addEventListener('click', triggerDossierDownload);
+  }
+
+  const dossierPreviewBtn = document.getElementById('dossier-preview-btn');
+  if (dossierPreviewBtn) {
+    dossierPreviewBtn.addEventListener('click', () => {
+      const caseData = {
+        caseName: state.investigation?.name || 'Evidence Dossier',
+        caseDescription: state.investigation?.description || '',
+        sources: state.sources,
+        evidence: state.evidence,
+        claims: state.claims,
+        entities: state.entities,
+        timeline: state.timeline,
+      };
+      const htmlContent = generateStandaloneDossierHtml(caseData);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    });
+  }
+
+  // Tool 3: File Hash Verifier
+  const hasherDropzone = document.getElementById('hasher-dropzone');
+  const hasherFileInput = document.getElementById('hasher-file-input');
+  const hasherBrowseBtn = document.getElementById('hasher-browse-btn');
+
+  const processVerifyFile = async (file) => {
+    if (!file) return;
+    try {
+      const res = await verifyFileHash(file, state.sources);
+      state.labState.hasherResult = res;
+      renderApp();
+    } catch (err) {
+      alert('Error verifying file: ' + err.message);
+    }
+  };
+
+  if (hasherBrowseBtn && hasherFileInput) {
+    hasherBrowseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hasherFileInput.click();
+    });
+  }
+  if (hasherDropzone && hasherFileInput) {
+    hasherDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hasherDropzone.classList.add('border-[var(--primary)]');
+    });
+    hasherDropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      hasherDropzone.classList.remove('border-[var(--primary)]');
+    });
+    hasherDropzone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hasherDropzone.classList.remove('border-[var(--primary)]');
+      const files = Array.from(e.dataTransfer.files || []);
+      if (files.length > 0) {
+        await processVerifyFile(files[0]);
+      }
+    });
+  }
+  if (hasherFileInput) {
+    hasherFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (file) await processVerifyFile(file);
+    });
+  }
+
+  // Tool 4: Whistleblower Redaction
+  const redactorQuoteSelect = document.getElementById('redactor-source-quote-select');
+  const redactorInput = document.getElementById('redactor-input');
+  const redactorOutput = document.getElementById('redactor-output');
+  const redactorCopyBtn = document.getElementById('redactor-copy-btn');
+  const redactorStyleRadios = document.querySelectorAll('input[name="redactor-style"]');
+  const redactorEmailsCb = document.getElementById('redactor-emails');
+  const redactorPhonesCb = document.getElementById('redactor-phones');
+  const redactorAmountsCb = document.getElementById('redactor-amounts');
+
+  const updateRedactorLive = () => {
+    const text = redactorInput ? redactorInput.value : state.labState.redactorOriginalText;
+    state.labState.redactorOriginalText = text;
+    const styleRadio = document.querySelector('input[name="redactor-style"]:checked');
+    const mode = styleRadio ? styleRadio.value : (state.labState.redactorMode || 'solid');
+    state.labState.redactorMode = mode;
+
+    const emails = redactorEmailsCb ? redactorEmailsCb.checked : true;
+    const phones = redactorPhonesCb ? redactorPhonesCb.checked : true;
+    const amounts = redactorAmountsCb ? redactorAmountsCb.checked : false;
+
+    state.labState.redactEmails = emails;
+    state.labState.redactPhones = phones;
+    state.labState.redactAmounts = amounts;
+
+    const sanitized = redactText(text, {
+      mode,
+      redactEmails: emails,
+      redactPhones: phones,
+      redactAmounts: amounts,
+      caseEntities: state.entities.map((e) => e.name),
+    });
+
+    if (redactorOutput) {
+      redactorOutput.textContent = sanitized;
+    }
+  };
+
+  if (redactorQuoteSelect) {
+    redactorQuoteSelect.addEventListener('change', (e) => {
+      const idx = parseInt(e.target.value, 10);
+      if (!isNaN(idx) && state.evidence[idx]) {
+        const quote = state.evidence[idx].verbatimQuote || state.evidence[idx].excerpt || '';
+        if (redactorInput) redactorInput.value = quote;
+        state.labState.redactorOriginalText = quote;
+        updateRedactorLive();
+      }
+    });
+  }
+
+  if (redactorInput) redactorInput.addEventListener('input', updateRedactorLive);
+  redactorStyleRadios.forEach((r) => r.addEventListener('change', updateRedactorLive));
+  if (redactorEmailsCb) redactorEmailsCb.addEventListener('change', updateRedactorLive);
+  if (redactorPhonesCb) redactorPhonesCb.addEventListener('change', updateRedactorLive);
+  if (redactorAmountsCb) redactorAmountsCb.addEventListener('change', updateRedactorLive);
+
+  if (redactorCopyBtn && redactorOutput) {
+    redactorCopyBtn.addEventListener('click', async () => {
+      const text = redactorOutput.textContent || '';
+      await navigator.clipboard.writeText(text);
+      triggerPersistenceStatus('Redacted text copied');
+      const orig = redactorCopyBtn.innerHTML;
+      redactorCopyBtn.innerHTML = '✓ Copied!';
+      setTimeout(() => {
+        redactorCopyBtn.innerHTML = orig;
+      }, 1800);
+    });
+  }
+
+  // Tool 5: Multi-Format Citations
+  const citeEvidenceSelect = document.getElementById('citation-evidence-select');
+  const citationFormatBtns = document.querySelectorAll('.citation-format-btn');
+  const citeCopySingleBtn = document.getElementById('citation-copy-single-btn');
+  const citeCopyAllBtn = document.getElementById('citation-copy-all-btn');
+
+  if (citeEvidenceSelect) {
+    citeEvidenceSelect.addEventListener('change', (e) => {
+      state.labState.citationEvidenceIdx = parseInt(e.target.value, 10) || 0;
+      renderApp();
+    });
+  }
+
+  citationFormatBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.labState.citationFormat = btn.dataset.format;
+      renderApp();
+    });
+  });
+
+  if (citeCopySingleBtn) {
+    citeCopySingleBtn.addEventListener('click', async () => {
+      const citeText = document.getElementById('citation-output')?.textContent || '';
+      await navigator.clipboard.writeText(citeText);
+      triggerPersistenceStatus('Citation copied');
+      const orig = citeCopySingleBtn.innerHTML;
+      citeCopySingleBtn.innerHTML = '✓ Copied!';
+      setTimeout(() => {
+        citeCopySingleBtn.innerHTML = orig;
+      }, 1800);
+    });
+  }
+
+  if (citeCopyAllBtn) {
+    citeCopyAllBtn.addEventListener('click', async () => {
+      const format = state.labState.citationFormat || 'bluebook';
+      const allCites = state.evidence
+        .map((ev, i) => {
+          const src = state.sources.find((s) => s.id === ev.sourceId) || {};
+          const citation = generateCitation(ev, src, format);
+          return format === 'bibtex' ? citation : `[${i + 1}] ${citation}`;
+        })
+        .join(format === 'bibtex' ? '\n\n' : '\n');
+
+      await navigator.clipboard.writeText(allCites);
+      triggerPersistenceStatus(`Copied all ${state.evidence.length} citations (${format.toUpperCase()})`);
+      const orig = citeCopyAllBtn.innerHTML;
+      citeCopyAllBtn.innerHTML = '✓ Full Bibliography Copied!';
+      setTimeout(() => {
+        citeCopyAllBtn.innerHTML = orig;
+      }, 1800);
+    });
+  }
+
+  // Tool 6: Cross-Document Overlap
+  const overlapDocASelect = document.getElementById('overlap-doc-a-select');
+  const overlapDocBSelect = document.getElementById('overlap-doc-b-select');
+  const overlapTextA = document.getElementById('overlap-text-a');
+  const overlapTextB = document.getElementById('overlap-text-b');
+  const overlapRunBtn = document.getElementById('overlap-run-btn');
+
+  const getSourceText = (srcId) => {
+    const s = state.sources.find((src) => src.id === srcId);
+    if (!s) return '';
+    if (s.rawText) return s.rawText;
+    if (s.content?.pages) return s.content.pages.map((p) => p.text).join('\n\n');
+    return '';
+  };
+
+  if (overlapDocASelect && overlapTextA) {
+    overlapDocASelect.addEventListener('change', (e) => {
+      const text = getSourceText(e.target.value);
+      if (text) overlapTextA.value = text;
+    });
+  }
+
+  if (overlapDocBSelect && overlapTextB) {
+    overlapDocBSelect.addEventListener('change', (e) => {
+      const text = getSourceText(e.target.value);
+      if (text) overlapTextB.value = text;
+    });
+  }
+
+  if (overlapRunBtn && overlapTextA && overlapTextB) {
+    overlapRunBtn.addEventListener('click', () => {
+      const textA = overlapTextA.value;
+      const textB = overlapTextB.value;
+      const result = detectTextOverlap(textA, textB);
+      state.labState.overlapResult = result;
+      renderApp();
     });
   }
 
