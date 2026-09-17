@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reptile Birds | Redirecting...</title>
+    <script>
+      // Single Page App Deep-Link Redirect for GitHub Pages
+      (function() {
+        var l = window.location;
+        var isGithubIo = l.hostname.endsWith('github.io');
+        var pathParts = l.pathname.split('/').filter(Boolean);
+        var base = '';
+        var route = '';
+
+        if (isGithubIo && pathParts.length > 0) {
+          base = '/' + pathParts[0];
+          route = '/' + pathParts.slice(1).join('/');
+        } else {
+          base = '';
+          route = l.pathname;
+        }
+
+        if (route.endsWith('/')) {
+          route = route.slice(0, -1);
+        }
+
+        var destination = l.protocol + '//' + l.host + base + '/#' + (route || '/') + l.search;
+        window.location.replace(destination);
+      })();
+    </script>
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 2rem; background: #0f172a; color: #94a3b8; text-align: center;">
+    <p>Redirecting to Reptile Birds research workspace...</p>
+  </body>
+</html>
