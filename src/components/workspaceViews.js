@@ -70,7 +70,7 @@ export function renderEmptyState() {
         <div class="space-y-2">
           <h2 class="text-lg font-bold text-[var(--text)]">Start your investigation</h2>
           <p class="text-xs text-[var(--text-3)] leading-relaxed">
-            Upload your research material to begin. PDFs, Documents, Spreadsheets, Transcripts, Images, Notes.
+            Add research material to begin. Supported files: PDF, DOCX, XLSX, CSV, text, transcript, and web archive formats.
           </p>
         </div>
 
