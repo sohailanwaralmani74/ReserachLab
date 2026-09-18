@@ -640,11 +640,25 @@ function attachEventListeners() {
       try {
         const text = await file.text();
         const backup = JSON.parse(text);
+        Storage.validateArchive(backup);
+        const sourceCount = Array.isArray(backup.sources) ? backup.sources.length : 0;
+        const claimCount = Array.isArray(backup.claims) ? backup.claims.length : 0;
+        const evidenceCount = Array.isArray(backup.evidence) ? backup.evidence.length : 0;
+        const confirmed = window.confirm(
+          'Restore this investigation archive?\\n\\n' +
+          sourceCount + ' sources · ' + evidenceCount + ' evidence items · ' + claimCount + ' claims\\n\\n' +
+          'Current local research will be replaced. Export a backup first if you need it.'
+        );
+        if (!confirmed) return;
+        triggerPersistenceStatus('Restoring archive...');
         await Storage.restoreArchive(backup);
         await loadData();
+        triggerPersistenceStatus('Restored locally');
         renderApp();
       } catch (err) {
-        alert('Invalid archive file format: ' + err.message);
+        alert('Archive could not be restored: ' + err.message);
+      } finally {
+        restoreFileInput.value = '';
       }
     });
   }
