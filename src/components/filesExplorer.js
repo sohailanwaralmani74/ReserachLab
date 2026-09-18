@@ -50,7 +50,7 @@ export function renderFilesExplorer({
           ${icon('plus', 14)}
           <span>Add research files</span>
         </button>
-        <input type="file" id="explorer-file-input" class="hidden" multiple />
+        <input type="file" id="explorer-file-input" class="hidden" multiple accept=".pdf,.xlsx,.xls,.csv,.docx,.txt,.log,.md,.vtt,.srt,.transcript,.html,.htm,.mhtml,.webarchive" />
 
         <!-- Search Files Input -->
         <div class="relative">
