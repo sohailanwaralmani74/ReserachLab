@@ -1936,9 +1936,16 @@ function attachModalEvents() {
 
 // Ingest Files Handler (Section 4 & 5)
 async function handleFilesIngest(files) {
+  const allowed = new Set(['pdf','xlsx','csv','docx','txt','transcript','web']);
+  const rejected = [];
   triggerPersistenceStatus('Importing files...');
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
+    const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+    if (!allowed.has(ext)) {
+      rejected.push(file.name);
+      continue;
+    }
     const seq = state.sources.length + 1;
     const parsed = await parseFile(file, seq, state.selectedFolderId);
     await Storage.saveSource(parsed);
@@ -1948,7 +1955,7 @@ async function handleFilesIngest(files) {
   state.currentPage = 1;
   state.currentSheetIndex = 0;
   state.verificationReport = runVerification(state.sources, state.evidence, state.claims, state.timeline);
-  triggerPersistenceStatus('Saved locally');
+  triggerPersistenceStatus(rejected.length ? `Saved locally · skipped ${rejected.length} unsupported file${rejected.length === 1 ? '' : 's'}` : 'Saved locally');
   renderApp();
 }
 
