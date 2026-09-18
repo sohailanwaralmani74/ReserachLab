@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { computeSHA256 } from './crypto.js';
 
 export function getFileTypeFromFilename(filename) {
@@ -91,9 +90,9 @@ export async function parseFile(file, sequenceNumber = 1, folderId = null) {
   try {
     if (type === 'pdf') {
       try {
-        const pdfjs = await import('pdfjs-dist');
+        const pdfjs = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs');
         if (pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
-          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || '4.10.38'}/pdf.worker.min.mjs`;
+          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs`;
         }
         const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) });
         const pdfDoc = await loadingTask.promise;
@@ -118,6 +117,7 @@ export async function parseFile(file, sequenceNumber = 1, folderId = null) {
         pageCount = 1;
       }
     } else if (type === 'xlsx' || type === 'csv') {
+      const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
       const workbook = XLSX.read(buffer, { type: 'array' });
       sheetCount = workbook.SheetNames.length;
       sheets = workbook.SheetNames.map((name) => {
