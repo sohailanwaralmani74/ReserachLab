@@ -80,8 +80,9 @@ export function runVerification(sources = [], evidenceList = [], claims = [], ti
       return;
     }
 
-    const normExcerpt = ev.excerpt.replace(/\s+/g, ' ').trim().toLowerCase();
-    const normText = src.rawText.replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalize = (value) => String(value || '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
+    const normExcerpt = normalize(ev.excerpt);
+    const normText = normalize(src.rawText);
 
     if (normExcerpt.length > 0 && normText.includes(normExcerpt)) {
       matchesFound++;
@@ -147,8 +148,8 @@ export function runVerification(sources = [], evidenceList = [], claims = [], ti
         id: `weak-claim-${claim.id}`,
         type: 'needs_verification',
         label: 'Needs verification',
-        title: `Claim #${claim.id} lacks primary supporting evidence`,
-        description: `Claim #${claim.id} only has reference or unverified links. Corroborating primary evidence required.`,
+        title: `Claim #${claim.id} lacks supporting evidence`,
+        description: `Claim #${claim.id} only has reference or unverified links. Additional corroboration may be needed.`,
         claimId: claim.id,
         severity: 'notice',
         timestamp: new Date().toISOString(),
@@ -165,7 +166,7 @@ export function runVerification(sources = [], evidenceList = [], claims = [], ti
         type: 'needs_verification',
         label: 'Needs verification',
         title: `Uncited Timeline Event "${event.title}"`,
-        description: `Event on ${event.date} does not cite any primary evidence record.`,
+        description: `Event on ${event.date} does not cite any evidence record.`,
         severity: 'notice',
         timestamp: new Date().toISOString(),
       });
