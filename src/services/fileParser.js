@@ -160,8 +160,6 @@ export async function parseFile(file, sequenceNumber = 1, folderId = null) {
       }
       pageCount = textPages.length;
     } else if (type === 'txt' || type === 'transcript' || type === 'web') {
-      const decoder = new TextDecoder('utf-8');
-      rawText = decoder.decode(buffer);
       const decoder = new TextDecoder('utf-8', { fatal: false });
       rawText = decoder.decode(buffer).slice(0, 20000);
       textPages = [{ pageNumber: 1, text: rawText }];
