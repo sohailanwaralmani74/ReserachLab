@@ -6,12 +6,73 @@ export function getFileTypeFromFilename(filename) {
   if (ext === 'pdf') return 'pdf';
   if (['xls', 'xlsx'].includes(ext)) return 'xlsx';
   if (ext === 'csv') return 'csv';
-  if (['doc', 'docx'].includes(ext)) return 'docx';
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'image';
+  if (ext === 'docx') return 'docx';
   if (['txt', 'log', 'md'].includes(ext)) return 'txt';
   if (['vtt', 'srt', 'transcript'].includes(ext)) return 'transcript';
   if (['html', 'htm', 'mhtml', 'webarchive'].includes(ext)) return 'web';
   return 'other';
+}
+
+
+async function parseDocxText(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decoder = new TextDecoder('utf-8');
+
+  const readU16 = (o) => view.getUint16(o, true);
+  const readU32 = (o) => view.getUint32(o, true);
+  const findEnd = () => {
+    for (let i = bytes.length - 22; i >= 0; i--) {
+      if (readU32(i) === 0x06054b50) return i;
+    }
+    return -1;
+  };
+  const inflate = async (data) => {
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser does not support ZIP decompression required for DOCX files.');
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  };
+
+  const eocd = findEnd();
+  if (eocd < 0) throw new Error('Invalid DOCX ZIP container.');
+  const centralOffset = readU32(eocd + 16);
+  const entries = readU16(eocd + 10);
+  let offset = centralOffset;
+  let documentEntry = null;
+
+  for (let i = 0; i < entries; i++) {
+    if (readU32(offset) !== 0x02014b50) throw new Error('Invalid DOCX central directory.');
+    const compression = readU16(offset + 10);
+    const compressedSize = readU32(offset + 20);
+    const nameLen = readU16(offset + 28);
+    const extraLen = readU16(offset + 30);
+    const commentLen = readU16(offset + 32);
+    const localOffset = readU32(offset + 42);
+    const name = decoder.decode(bytes.slice(offset + 46, offset + 46 + nameLen));
+    if (name === 'word/document.xml') documentEntry = { compression, compressedSize, localOffset };
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+
+  if (!documentEntry) throw new Error('DOCX document.xml was not found.');
+  const local = documentEntry.localOffset;
+  if (readU32(local) !== 0x04034b50) throw new Error('Invalid DOCX local file header.');
+  const localNameLen = readU16(local + 26);
+  const localExtraLen = readU16(local + 28);
+  const dataStart = local + 30 + localNameLen + localExtraLen;
+  const compressed = bytes.slice(dataStart, dataStart + documentEntry.compressedSize);
+  let xmlBytes;
+  if (documentEntry.compression === 0) xmlBytes = compressed;
+  else if (documentEntry.compression === 8) xmlBytes = await inflate(compressed);
+  else throw new Error('Unsupported DOCX compression method.');
+
+  const xml = decoder.decode(xmlBytes);
+  const xmlDoc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (xmlDoc.querySelector('parsererror')) throw new Error('Could not parse DOCX XML.');
+
+  const paragraphs = Array.from(xmlDoc.getElementsByTagNameNS('*', 'p')).map((p) => {
+    return Array.from(p.getElementsByTagNameNS('*', 't')).map((t) => t.textContent || '').join('');
+  }).filter(Boolean);
+  return paragraphs.join('\\n\\n').trim();
 }
 
 export async function parseFile(file, sequenceNumber = 1, folderId = null) {
@@ -81,9 +142,8 @@ export async function parseFile(file, sequenceNumber = 1, folderId = null) {
         .join('\n\n');
 
       pageCount = sheetCount;
-    } else if (type === 'txt' || type === 'transcript' || type === 'web' || type === 'docx') {
-      const decoder = new TextDecoder('utf-8');
-      rawText = decoder.decode(buffer);
+    } else if (type === 'docx') {
+      rawText = await parseDocxText(buffer);
       // Create logical reading pages ~ 2500 characters
       const paragraphs = rawText.split(/\n\s*\n/);
       let curText = '';
@@ -99,12 +159,9 @@ export async function parseFile(file, sequenceNumber = 1, folderId = null) {
         textPages.push({ pageNumber: pageNum, text: curText.trim() });
       }
       pageCount = textPages.length;
-    } else if (type === 'image') {
-      const blob = new Blob([buffer], { type: file.type || 'image/png' });
-      previewUrl = URL.createObjectURL(blob);
-      rawText = `[Image document: ${file.name}, ${(file.size / 1024).toFixed(1)} KB]`;
-      textPages = [{ pageNumber: 1, text: rawText }];
-    } else {
+    } else if (type === 'txt' || type === 'transcript' || type === 'web') {
+      const decoder = new TextDecoder('utf-8');
+      rawText = decoder.decode(buffer);
       const decoder = new TextDecoder('utf-8', { fatal: false });
       rawText = decoder.decode(buffer).slice(0, 20000);
       textPages = [{ pageNumber: 1, text: rawText }];
