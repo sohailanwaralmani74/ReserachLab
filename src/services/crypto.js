@@ -4,26 +4,13 @@
  */
 
 export async function computeSHA256(buffer) {
-  if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
-    try {
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-    } catch (e) {
-      console.warn('SubtleCrypto error, using fallback', e);
-    }
+  if (!window.crypto?.subtle?.digest) {
+    throw new Error('Web Crypto SHA-256 is unavailable in this browser.');
   }
-
-  // Fallback hash implementation if SubtleCrypto is unavailable
-  let hash = 0;
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.length; i++) {
-    hash = ((hash << 5) - hash) + bytes[i];
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16).padStart(64, '0');
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
-
 export async function computeStringSHA256(text) {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
