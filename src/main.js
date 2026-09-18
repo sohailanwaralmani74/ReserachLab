@@ -1,4 +1,3 @@
-import './index.css';
 import { Storage } from './services/storage.js';
 import { parseFile } from './services/fileParser.js';
 import { runVerification } from './services/verificationEngine.js';
