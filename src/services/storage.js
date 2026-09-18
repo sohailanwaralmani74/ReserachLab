@@ -272,8 +272,44 @@ export const Storage = {
     };
   },
 
+  // Validate an archive before any existing local data is cleared.
+  validateArchive(backup) {
+    if (!backup || typeof backup !== 'object' || Array.isArray(backup)) {
+      throw new Error('Archive must be a JSON object.');
+    }
+    if (backup.schemaVersion !== '1.0') {
+      throw new Error('Unsupported archive version. Expected schemaVersion 1.0.');
+    }
+    if (!backup.investigation || typeof backup.investigation !== 'object') {
+      throw new Error('Archive is missing investigation metadata.');
+    }
+
+    const arrays = ['folders', 'sources', 'evidence', 'claims', 'entities', 'relationships', 'timeline', 'notes'];
+    for (const field of arrays) {
+      if (backup[field] !== undefined && !Array.isArray(backup[field])) {
+        throw new Error('Archive field "' + field + '" must be an array.');
+      }
+    }
+
+    const sourceIds = new Set();
+    for (const source of backup.sources || []) {
+      if (!source || typeof source !== 'object' || !source.id || !source.name) {
+        throw new Error('Archive contains an invalid source record.');
+      }
+      if (sourceIds.has(source.id)) {
+        throw new Error('Archive contains duplicate source ID "' + source.id + '".');
+      }
+      sourceIds.add(source.id);
+      if (source.sha256 && !/^[a-f0-9]{64}$/i.test(source.sha256)) {
+        throw new Error('Invalid SHA-256 value for source "' + source.name + '".');
+      }
+    }
+    return true;
+  },
+
   // Restore Complete Archive
   async restoreArchive(backup) {
+    this.validateArchive(backup);
     await this.clearAll();
 
     if (backup.investigation) {
